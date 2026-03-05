@@ -189,3 +189,130 @@ ngrok http 192.168.1.100:18790
 For reliable production setups, deploy a lightweight reverse proxy on a cloud server (e.g., Volcengine ECS, AWS EC2) that forwards requests to your ESP32 via a VPN or WireGuard tunnel. This is the approach described in the [Volcengine OpenClaw deployment guide](https://www.volcengine.com/docs/6396/2189942).
 
 > **Note:** Feishu requires the webhook URL to be accessible and respond within 3 seconds. Ensure your network path has low latency.
+
+## Step 6: Publish and Test
+
+### Enable the Bot
+
+1. In your app settings, go to **Bot** in the left sidebar
+2. Toggle **Enable Bot** to ON
+
+### Publish the App
+
+1. Go to **App Release** (or "Version Management & Release")
+2. Click **Create Version**
+3. Set a version number and description
+4. Click **Submit for Review** (for enterprise apps) or **Publish** (for personal testing apps)
+
+> **Tip:** For testing, you can use the app in "development mode" without publishing — just add yourself as a test user.
+
+### Test the Bot
+
+1. Open Feishu and search for your bot by name
+2. Send a message to the bot in a direct chat
+3. Check the ESP32 serial output — you should see the message being received and processed
+4. The bot should reply through Feishu
+
+For group chats:
+
+1. Add the bot to a group
+2. Mention the bot with `@BotName` followed by your message
+3. The bot will process and reply in the group
+
+## Architecture
+
+```
+Feishu Cloud
+    |
+    |  HTTP POST /feishu/events
+    |  (im.message.receive_v1)
+    v
+[ESP32 Webhook Server :18790]
+    |
+    |  message_bus_push_inbound()
+    v
+[Message Bus] ──> [Agent Loop] ──> [Message Bus]
+                   (Claude/GPT)         |
+                                        |  outbound dispatch
+                                        v
+                              [feishu_send_message()]
+                                        |
+                                        |  POST /im/v1/messages
+                                        v
+                                   Feishu API
+```
+
+### Key Components
+
+| Component | Description |
+|-----------|-------------|
+| **Webhook Server** | HTTP server on port 18790, handles event callbacks |
+| **Token Manager** | Manages tenant access tokens, auto-refreshes before expiry |
+| **Message Sender** | Sends text messages via Feishu REST API with auto-chunking |
+| **Deduplication** | Prevents processing duplicate events from Feishu retries |
+
+### Configuration Constants
+
+These can be found in `main/mimi_config.h`:
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `MIMI_FEISHU_MAX_MSG_LEN` | 4096 | Max message length per chunk |
+| `MIMI_FEISHU_WEBHOOK_PORT` | 18790 | Webhook HTTP server port |
+| `MIMI_FEISHU_WEBHOOK_PATH` | `/feishu/events` | Webhook endpoint path |
+| `MIMI_FEISHU_WEBHOOK_MAX_BODY` | 16 KB | Max webhook request body size |
+
+## CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `set_feishu_creds <app_id> <app_secret>` | Save Feishu credentials to NVS |
+| `config_show` | Show all configuration (including Feishu, masked) |
+| `config_reset` | Clear all NVS config, revert to build-time defaults |
+
+## Troubleshooting
+
+### Webhook URL verification fails
+
+- Ensure the ESP32 is running and connected to WiFi: `wifi_status`
+- Verify the webhook URL is reachable from the internet
+- Check that port 18790 is not blocked by firewalls
+- Look at ESP32 serial output for incoming HTTP requests
+
+### Bot doesn't respond to messages
+
+1. **Check credentials**: `config_show` should show Feishu app_id and app_secret
+2. **Check event subscription**: Ensure `im.message.receive_v1` is subscribed in the Feishu app settings
+3. **Check permissions**: Both `im:message` and `im:message:send_as_bot` must be granted
+4. **Check serial output**: Look for message processing logs on the ESP32
+
+### "Tenant access token" errors
+
+- Verify your App ID and App Secret are correct
+- The token auto-refreshes every 2 hours — if you just set credentials, wait a moment for the first token fetch
+- Ensure the ESP32 can reach `https://open.feishu.cn` (check proxy settings if needed)
+
+### Messages are truncated
+
+Feishu has a 4096-character limit per message. MimiClaw automatically chunks long messages, but if you see issues, check the serial output for chunking errors.
+
+### Bot works in DM but not in groups
+
+- Ensure the bot is added to the group
+- Users must `@mention` the bot in group chats for it to receive messages
+- Check that group messaging permissions are enabled in the Feishu app settings
+
+### Event subscription shows errors in Feishu console
+
+- Feishu retries failed events up to 5 times with exponential backoff
+- MimiClaw deduplicates retried events, so duplicate processing is not a concern
+- If events consistently fail, check the ESP32's network connectivity
+
+## References
+
+- [Feishu Open Platform Documentation](https://open.feishu.cn/document/home/index)
+- [Feishu Bot Development Guide](https://open.feishu.cn/document/client-docs/bot-v3/bot-overview)
+- [Feishu Message API](https://open.feishu.cn/document/server-docs/im-v1/message/create)
+- [Feishu Event Subscription Guide](https://open.feishu.cn/document/server-docs/event-subscription/event-subscription-guide)
+- [Lark Developer Documentation](https://open.larksuite.com/document/home/index) (international version)
+- [Volcengine OpenClaw Deployment Guide](https://www.volcengine.com/docs/6396/2189942) (Chinese)
