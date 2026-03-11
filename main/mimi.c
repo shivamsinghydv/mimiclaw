@@ -26,9 +26,11 @@
 #include "buttons/button_driver.h"
 #include "imu/imu_manager.h"
 #include "skills/skill_loader.h"
+#include "mimi_display.h"
+static const char *TAG = "mini";
 
-static const char *TAG = "mimi";
-
+mimi_display_init();
+mimi_display_status("Booting up...");
 static esp_err_t init_nvs(void)
 {
     esp_err_t ret = nvs_flash_init();
@@ -99,10 +101,8 @@ void app_main(void)
 {
     /* Silence noisy components */
     esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
-
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  MimiClaw - ESP32-S3 AI Agent");
-    ESP_LOGI(TAG, "========================================");
+    ESP_LOGI(TAG, " MiniGPT - ESP32-S3 AI Agent");
+    display_status("MiniGPt Esp32 based AI agent");
 
     /* Print memory info */
     ESP_LOGI(TAG, "Internal free: %d bytes",
@@ -153,7 +153,7 @@ void app_main(void)
                 MIMI_OUTBOUND_PRIO, NULL, MIMI_OUTBOUND_CORE) == pdPASS)
                 ? ESP_OK : ESP_FAIL);
 
-            /* Start network-dependent services */
+            
             ESP_ERROR_CHECK(agent_loop_start());
             ESP_ERROR_CHECK(telegram_bot_start());
             cron_service_start();
@@ -161,11 +161,14 @@ void app_main(void)
             ESP_ERROR_CHECK(ws_server_start());
 
             ESP_LOGI(TAG, "All services started!");
+
+            mimi_display_wifi(wifi_manager_get_ssid(), true);
         } else {
             ESP_LOGW(TAG, "WiFi connection timeout. Check MIMI_SECRET_WIFI_SSID in mimi_secrets.h");
         }
     } else {
         ESP_LOGW(TAG, "No WiFi credentials. Set MIMI_SECRET_WIFI_SSID in mimi_secrets.h");
+        mimi_display_wifi("No WiFi", false);
     }
 
     ESP_LOGI(TAG, "MimiClaw ready. Type 'help' for CLI commands.");

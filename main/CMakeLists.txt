@@ -3,6 +3,7 @@ idf_component_register(
         "mimi.c"
         "buttons/multi_button.c"
         "buttons/button_driver.c"
+        "display/display.c"
         "imu/I2C_Driver.c"
         "imu/QMI8658.c"
         "imu/imu_manager.c"
@@ -27,6 +28,7 @@ idf_component_register(
         "skills/skill_loader.c"
     INCLUDE_DIRS
         "."
+        "display"
     REQUIRES
         nvs_flash esp_wifi esp_netif esp_http_client esp_http_server
         esp_https_ota esp_event json spiffs console vfs app_update esp-tls

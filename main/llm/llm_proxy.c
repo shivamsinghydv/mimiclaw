@@ -10,6 +10,7 @@
 #include "esp_heap_caps.h"
 #include "nvs.h"
 #include "cJSON.h"
+#include "display/display.h"
 
 static const char *TAG = "llm";
 
@@ -192,8 +193,10 @@ esp_err_t llm_proxy_init(void)
 
     if (s_api_key[0]) {
         ESP_LOGI(TAG, "LLM proxy initialized (provider: %s, model: %s)", s_provider, s_model);
+        mimi_display_status("LLM Proxy Ready");
     } else {
         ESP_LOGW(TAG, "No API key. Use CLI: set_api_key <KEY>");
+        mimi_display_status("LLM Proxy: No API Key");
     }
     return ESP_OK;
 }
